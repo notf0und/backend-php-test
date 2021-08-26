@@ -84,6 +84,18 @@ $app->post('/todo/add', function (Request $request) use ($app) {
     return $app->redirect('/todo');
 });
 
+$app->match('/todo/complete/{id}', function ($id) use ($app) {
+    if (null === $user = $app['session']->get('user')) {
+        return $app->redirect('/login');
+    }
+
+    $user_id = $user['id'];
+
+    $sql = "UPDATE todos SET completed = 1 WHERE id  = '$id' AND user_id = '$user_id'";
+    $app['db']->executeUpdate($sql);
+
+    return $app->redirect('/todo');
+});
 
 $app->match('/todo/delete/{id}', function ($id) use ($app) {
 
