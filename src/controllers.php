@@ -73,6 +73,11 @@ $app->post('/todo/add', function (Request $request) use ($app) {
     $user_id = $user['id'];
     $description = $request->get('description');
 
+    if(!$description) {
+        $app['session']->getFlashBag()->add('validation', 'Description field is required');
+        return $app->redirect($request->headers->get('referer'));
+    }
+
     $sql = "INSERT INTO todos (user_id, description) VALUES ('$user_id', '$description')";
     $app['db']->executeUpdate($sql);
 
