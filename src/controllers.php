@@ -1,5 +1,6 @@
 <?php
 
+use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 
@@ -61,6 +62,24 @@ $app->get('/todo/{id}', function ($id) use ($app) {
             'todos' => $todos,
         ]);
     }
+})
+->value('id', null);
+
+$app->get('/todo/{id}/json', function ($id) use ($app) {
+    if (null === $user = $app['session']->get('user')) {
+        return $app->redirect('/login');
+    }
+
+    if ($id && is_numeric($id)){
+        $sql = "SELECT * FROM todos WHERE user_id = '${user['id']}' AND id = '$id'";
+        $todo = $app['db']->fetchAssoc($sql);
+
+        if($todo) {
+            return new JsonResponse($todo);
+        }
+    }
+
+    return new JsonResponse(['error' => ['message' => 'Record not found']], 404);
 })
 ->value('id', null);
 
