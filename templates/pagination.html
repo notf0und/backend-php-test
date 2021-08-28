@@ -1,0 +1,27 @@
+{% macro pagination(total, current, pageQueryParam = 'page', nearbyPagesLimit = 2) %}
+    {% if total > 1 %}
+    <ul class="pagination my-4">
+        {% for i in 1..total %}
+        {% if 0 == (current - nearbyPagesLimit) - loop.index %}
+        <li class="page-item"><a href="{{ (app.request.pathInfo ~ '?' ~ (app.request.query.all|merge({(pageQueryParam): 1})|url_encode))|e }}" class="page-link">1</a></li>
+        {% if 1 != loop.index %}
+            <li class="page-item">
+                <a href="javascript:void(0)" class="page-link">...</a>
+            </li>
+        {% endif %}
+        {% elseif 0 == (current + nearbyPagesLimit) - loop.index  and (current + nearbyPagesLimit) < total %}
+        <li class="page-item">
+            <a href="javascript:void(0)" class="page-link">...</a>
+        </li>
+        {% else %}
+        <li class="page-item{{ current == loop.index ? ' active' }}">
+            <a href="{{ (app.request.pathInfo ~ '?' ~ (app.request.query.all|merge({(pageQueryParam): loop.index})|url_encode))|e }}" class="page-link">{{ loop.index }}</a>
+        </li>
+        {% endif %}
+        {% endfor %}
+        {% if current != total  and (current + nearbyPagesLimit) < total %}
+        <li class="page-item"><a href="{{ (app.request.pathInfo ~ '?' ~ (app.request.query.all|merge({(pageQueryParam): total})|url_encode))|e }}" class="page-link">{{ total }}</a></li>
+        {% endif %}
+    </ul>
+    {% endif %}
+{% endmacro %}

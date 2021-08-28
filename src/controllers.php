@@ -4,6 +4,23 @@ use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 
+function getPaginatorFromTodos($app, $user, $page) {
+    $perPage = 10;
+    $sql = "SELECT count(*) as total FROM todos WHERE user_id = '${user['id']}'";
+    $total = $app['db']->fetchOne($sql);
+    $lastPage = ceil($total/$perPage);
+
+    $lastPage = ceil($total/$perPage);
+    $limit = ($page - 1) * $perPage;
+
+    return [
+        'total' => $total,
+        'per_page' => $perPage,
+        'current_page' => $page,
+        'last_page' => $lastPage,
+    ];
+}
+
 $app['twig'] = $app->share($app->extend('twig', function($twig, $app) {
     $twig->addGlobal('user', $app['session']->get('user'));
 
@@ -42,6 +59,24 @@ $app->get('/logout', function () use ($app) {
 });
 
 
+$app->get('/todo', function (Request $request) use ($app) {
+    if (null === $user = $app['session']->get('user')) {
+        return $app->redirect('/login');
+    }
+
+    $paginator = getPaginatorFromTodos($app, $user, $request->get('page', 1));
+    $limit = ($paginator['current_page'] - 1) * $paginator['per_page'];
+
+    $sql = "SELECT * FROM todos WHERE user_id = '${user['id']}' LIMIT $limit, {$paginator['per_page']}";
+    $todos = $app['db']->fetchAll($sql);
+
+    return $app['twig']->render('todos.html', [
+        'todos' => $todos,
+        'paginator' => $paginator
+    ]);
+});
+
+
 $app->get('/todo/{id}', function ($id) use ($app) {
     if (null === $user = $app['session']->get('user')) {
         return $app->redirect('/login');
@@ -64,6 +99,7 @@ $app->get('/todo/{id}', function ($id) use ($app) {
     }
 })
 ->value('id', null);
+
 
 $app->get('/todo/{id}/json', function ($id) use ($app) {
     if (null === $user = $app['session']->get('user')) {
@@ -102,10 +138,12 @@ $app->post('/todo/add', function (Request $request) use ($app) {
 
     $app['session']->getFlashBag()->add('message', 'Task created');
 
-    return $app->redirect('/todo');
+    $paginator = getPaginatorFromTodos($app, $user, $request->get('page', 1));
+
+    return $app->redirect("/todo?page={$paginator['last_page']}");
 });
 
-$app->match('/todo/complete/{id}', function ($id) use ($app) {
+$app->match('/todo/complete/{id}', function (Request $request, $id) use ($app) {
     if (null === $user = $app['session']->get('user')) {
         return $app->redirect('/login');
     }
@@ -115,7 +153,7 @@ $app->match('/todo/complete/{id}', function ($id) use ($app) {
     $sql = "UPDATE todos SET completed = 1 WHERE id  = '$id' AND user_id = '$user_id'";
     $app['db']->executeUpdate($sql);
 
-    return $app->redirect('/todo');
+    return $app->redirect($request->headers->get('referer'));
 });
 
 $app->match('/todo/delete/{id}', function ($id) use ($app) {
