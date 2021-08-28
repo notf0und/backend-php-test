@@ -1,45 +1,6 @@
 {% extends "layout.html" %}
 
 {% block content %}
-<div class="col-md-4 col-md-offset-4">
-    <h1>Todo List:</h1>
-    <table class="table table-striped">
-        <thead>
-            <tr>
-                <th>#</th>
-                <th>User</th>
-                <th>Description</th>
-                <th>Actions</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for todo in todos %}
-                {% include 'todoRow.html' with {'todo': todo} %}
-            {% endfor %}
-            <tr>
-                <form method="post" action="{{ app.request.baseurl }}/todo/add">
-                    <td colspan="3">
-                        <input type="textbox" name="description" class="small-6 small-center" placeholder="Description..." required>
-                        {% if app.session.flashbag.get('validation') %}
-                        <span class="help-block">Field is required</span>
-                        {% endif %}
-                    </td>
-                    <td>
-                        <button type="submit" class="btn btn-sm btn-primary">Add</button>
-                    </td>
-                </form>
-            </tr>
-        </tbody>
-        <tfoot style="text-align:center">
-            <tr>
-                <td colspan="4">
-                    {% import "pagination.html" as pagination %}
-                    {{ pagination.pagination(paginator.last_page, paginator.current_page) }}
-                </td>
-            </tr>
-        </tfoot>
-    </table>
-
-
+<div class="col-md-4 col-md-offset-4" id="todos">
 </div>
 {% endblock %}
