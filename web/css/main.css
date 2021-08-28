@@ -5,8 +5,17 @@ body {
 .login-form > div {
     margin-top: 10px;
 }
+td {
+    border-top: none !important;
+}
 
 td.actions {
-    display: grid;
-    grid-auto-flow: column;
+    width: 100%;
+    display: flex;
+    justify-content: space-around;
+}
+
+td.add-todo {
+    display: flex;
+    justify-content: space-around;
 }

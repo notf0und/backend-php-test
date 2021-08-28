@@ -2,7 +2,6 @@
 
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
-use Symfony\Component\HttpFoundation\Response;
 
 function getPaginatorFromTodos($app, $user, $page) {
     $perPage = 10;
@@ -21,12 +20,28 @@ function getPaginatorFromTodos($app, $user, $page) {
     ];
 }
 
+function jsonResponseError($code) {
+    $messages = [
+        401 => 'Unauthenticated',
+        404 => 'Record not found',
+        422 => 'Validation error',
+        'default' => 'An error happened!'
+    ];
+
+    if(!array_key_exists($code, $messages)) {
+        $code = 'default';
+    }
+
+    return new JsonResponse(['error' => ['message' => $messages[$code]]], 404);
+}
+
 $app['twig'] = $app->share($app->extend('twig', function($twig, $app) {
     $twig->addGlobal('user', $app['session']->get('user'));
-
+    $twig->addExtension(new \Twig\ViteAssetExtension(
+        $app['config']['vite']['dev'],
+        realpath(dirname(__FILE__)) . '/../web/assets/manifest.json'));
     return $twig;
 }));
-
 
 $app->get('/', function () use ($app) {
     return $app['twig']->render('index.html', [
@@ -64,18 +79,18 @@ $app->get('/todo', function (Request $request) use ($app) {
         return $app->redirect('/login');
     }
 
-    $paginator = getPaginatorFromTodos($app, $user, $request->get('page', 1));
-    $limit = ($paginator['current_page'] - 1) * $paginator['per_page'];
-
-    $sql = "SELECT * FROM todos WHERE user_id = '${user['id']}' LIMIT $limit, {$paginator['per_page']}";
-    $todos = $app['db']->fetchAll($sql);
-
-    return $app['twig']->render('todos.html', [
-        'todos' => $todos,
-        'paginator' => $paginator
-    ]);
+    return $app['twig']->render('todos.html');
 });
 
+$app->get('/todo/json', function (Request $request) use ($app) {
+    if (null === $user = $app['session']->get('user')) {
+        return $app->redirect('/login');
+    }
+
+    $sql = "SELECT * FROM todos WHERE user_id = '${user['id']}'";
+    $todos = $app['db']->fetchAll($sql);
+    return new JsonResponse($todos);
+});
 
 $app->get('/todo/{id}', function ($id) use ($app) {
     if (null === $user = $app['session']->get('user')) {
@@ -103,7 +118,7 @@ $app->get('/todo/{id}', function ($id) use ($app) {
 
 $app->get('/todo/{id}/json', function ($id) use ($app) {
     if (null === $user = $app['session']->get('user')) {
-        return $app->redirect('/login');
+        return jsonResponseError(401);
     }
 
     if ($id && is_numeric($id)){
@@ -115,7 +130,7 @@ $app->get('/todo/{id}/json', function ($id) use ($app) {
         }
     }
 
-    return new JsonResponse(['error' => ['message' => 'Record not found']], 404);
+    return jsonResponseError(404);
 })
 ->value('id', null);
 
@@ -143,6 +158,30 @@ $app->post('/todo/add', function (Request $request) use ($app) {
     return $app->redirect("/todo?page={$paginator['last_page']}");
 });
 
+$app->post('/todo/add/json', function (Request $request) use ($app) {
+    if (null === $user = $app['session']->get('user')) {
+        return jsonResponseError(401);
+    }
+
+    $data = json_decode($request->getContent(), true);
+    $hasDescription = array_key_exists('description', $data);
+    if (($hasDescription && empty($data['description'])) || !$hasDescription) {
+        return jsonResponseError(422);
+    }
+
+    $user_id = $user['id'];
+    $description = $data['description'];
+
+    $sql = "INSERT INTO todos (user_id, description) VALUES ('$user_id', '$description')";
+    $app['db']->executeUpdate($sql);
+    $id = $app['db']->lastInsertId();
+
+    $sql = "SELECT * FROM todos WHERE id  = '$id' AND user_id = '$user_id'";
+    $record = $app['db']->fetchAssoc($sql);
+
+    return JsonResponse::create($record);
+});
+
 $app->match('/todo/complete/{id}', function (Request $request, $id) use ($app) {
     if (null === $user = $app['session']->get('user')) {
         return $app->redirect('/login');
@@ -156,6 +195,19 @@ $app->match('/todo/complete/{id}', function (Request $request, $id) use ($app) {
     return $app->redirect($request->headers->get('referer'));
 });
 
+$app->match('/todo/complete/{id}/json', function (Request $request, $id) use ($app) {
+    if (null === $user = $app['session']->get('user')) {
+        return jsonResponseError(401);
+    }
+
+    $user_id = $user['id'];
+
+    $sql = "UPDATE todos SET completed = 1 WHERE id  = '$id' AND user_id = '$user_id'";
+    $app['db']->executeUpdate($sql);
+
+    return JsonResponse::create(true);
+});
+
 $app->match('/todo/delete/{id}', function ($id) use ($app) {
 
     $sql = "DELETE FROM todos WHERE id = '$id'";
@@ -164,4 +216,16 @@ $app->match('/todo/delete/{id}', function ($id) use ($app) {
     $app['session']->getFlashBag()->add('message', 'Task deleted');
 
     return $app->redirect('/todo');
+});
+
+
+$app->match('/todo/delete/{id}/json', function ($id) use ($app) {
+    if (null === $user = $app['session']->get('user')) {
+        return jsonResponseError(401);
+    }
+
+    $sql = "DELETE FROM todos WHERE id = '$id'";
+    $app['db']->executeUpdate($sql);
+
+    return JsonResponse::create(true);
 });
