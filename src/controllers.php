@@ -104,10 +104,10 @@ $app->get('/todo/{id}', function ($id) use ($app) {
     }
 
     if ($id){
-        $sql = 'SELECT * FROM todos WHERE id = :id';
-
+        $user_id = $user['id'];
+        $sql = 'SELECT * FROM todos WHERE id = :id AND user_id = :user_id';
         $query = $app['db']->prepare($sql);
-        $query->execute(compact('id'));
+        $query->execute(compact('id', 'user_id'));
         $todo = $query->fetchAssociative();
 
         if($todo) {
@@ -127,7 +127,6 @@ $app->get('/todo/{id}/json', function ($id) use ($app) {
     if ($id && is_numeric($id)){
         $user_id = $user['id'];
         $sql = 'SELECT * FROM todos WHERE id = :id AND user_id = :user_id';
-
         $query = $app['db']->prepare($sql);
         $query->execute(compact('id', 'user_id'));
         $todo = $query->fetchAssociative();
@@ -218,10 +217,14 @@ $app->match('/todo/complete/{id}/json', function (Request $request, $id) use ($a
 });
 
 $app->match('/todo/delete/{id}', function ($id) use ($app) {
+    if (null === $user = $app['session']->get('user')) {
+        return $app->redirect('/login');
+    }
 
-    $sql = "DELETE FROM todos WHERE id = :id";
+    $user_id = $user['id'];
+    $sql = 'DELETE FROM todos WHERE id = :id AND user_id = :user_id';
     $query = $app['db']->prepare($sql);
-    $query->execute(compact( 'id'));
+    $query->execute(compact( 'id', 'user_id'));
 
     $app['session']->getFlashBag()->add('message', 'Task deleted');
 
@@ -234,9 +237,10 @@ $app->match('/todo/delete/{id}/json', function ($id) use ($app) {
         return jsonResponseError(401);
     }
 
-    $sql = "DELETE FROM todos WHERE id = :id";
+    $user_id = $user['id'];
+    $sql = 'DELETE FROM todos WHERE id = :id AND user_id = :user_id';
     $query = $app['db']->prepare($sql);
-    $query->execute(compact( 'id'));
+    $query->execute(compact( 'id', 'user_id'));
 
     return JsonResponse::create(true);
 });
