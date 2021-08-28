@@ -5,3 +5,12 @@ body {
 .login-form > div {
     margin-top: 10px;
 }
+
+td.actions {
+    display: grid;
+    grid-auto-flow: column;
+}
+
+.completed {
+    text-decoration: line-through;
+}
