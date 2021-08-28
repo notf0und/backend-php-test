@@ -55,8 +55,11 @@ $app->match('/login', function (Request $request) use ($app) {
     $password = $request->get('password');
 
     if ($username) {
-        $sql = "SELECT * FROM users WHERE username = '$username' and password = '$password'";
-        $user = $app['db']->fetchAssoc($sql);
+        $sql = 'SELECT * FROM users WHERE username = :username AND password = :password';
+
+        $query = $app['db']->prepare($sql);
+        $query->execute(compact('username', 'password'));
+        $user = $query->fetchAssociative();
 
         if ($user){
             $app['session']->set('user', $user);
@@ -79,6 +82,9 @@ $app->get('/todo', function (Request $request) use ($app) {
         return $app->redirect('/login');
     }
 
+    // Functionality here has been removed since now
+    // react fetch the data using /todo/json endpoint
+
     return $app['twig']->render('todos.html');
 });
 
@@ -98,20 +104,17 @@ $app->get('/todo/{id}', function ($id) use ($app) {
     }
 
     if ($id){
-        $sql = "SELECT * FROM todos WHERE id = '$id'";
-        $todo = $app['db']->fetchAssoc($sql);
+        $sql = 'SELECT * FROM todos WHERE id = :id';
 
-        return $app['twig']->render('todo.html', [
-            'todo' => $todo,
-        ]);
-    } else {
-        $sql = "SELECT * FROM todos WHERE user_id = '${user['id']}'";
-        $todos = $app['db']->fetchAll($sql);
+        $query = $app['db']->prepare($sql);
+        $query->execute(compact('id'));
+        $todo = $query->fetchAssociative();
 
-        return $app['twig']->render('todos.html', [
-            'todos' => $todos,
-        ]);
-    }
+        if($todo) {
+            return $app['twig']->render('todo.html', ['todo' => $todo,]);
+        }
+
+        return $app->redirect('/todo');    }
 })
 ->value('id', null);
 
@@ -122,8 +125,12 @@ $app->get('/todo/{id}/json', function ($id) use ($app) {
     }
 
     if ($id && is_numeric($id)){
-        $sql = "SELECT * FROM todos WHERE user_id = '${user['id']}' AND id = '$id'";
-        $todo = $app['db']->fetchAssoc($sql);
+        $user_id = $user['id'];
+        $sql = 'SELECT * FROM todos WHERE id = :id AND user_id = :user_id';
+
+        $query = $app['db']->prepare($sql);
+        $query->execute(compact('id', 'user_id'));
+        $todo = $query->fetchAssociative();
 
         if($todo) {
             return new JsonResponse($todo);
@@ -148,11 +155,11 @@ $app->post('/todo/add', function (Request $request) use ($app) {
         return $app->redirect($request->headers->get('referer'));
     }
 
-    $sql = "INSERT INTO todos (user_id, description) VALUES ('$user_id', '$description')";
-    $app['db']->executeUpdate($sql);
+    $sql = 'INSERT INTO todos (user_id, description) VALUES (:user_id, :description)';
+    $query = $app['db']->prepare($sql);
+    $query->execute(compact( 'user_id', 'description'));
 
     $app['session']->getFlashBag()->add('message', 'Task created');
-
     $paginator = getPaginatorFromTodos($app, $user, $request->get('page', 1));
 
     return $app->redirect("/todo?page={$paginator['last_page']}");
@@ -172,8 +179,10 @@ $app->post('/todo/add/json', function (Request $request) use ($app) {
     $user_id = $user['id'];
     $description = $data['description'];
 
-    $sql = "INSERT INTO todos (user_id, description) VALUES ('$user_id', '$description')";
-    $app['db']->executeUpdate($sql);
+    $sql = 'INSERT INTO todos (user_id, description) VALUES (:user_id, :description)';
+    $query = $app['db']->prepare($sql);
+    $query->execute(compact( 'user_id', 'description'));
+
     $id = $app['db']->lastInsertId();
 
     $sql = "SELECT * FROM todos WHERE id  = '$id' AND user_id = '$user_id'";
@@ -188,9 +197,9 @@ $app->match('/todo/complete/{id}', function (Request $request, $id) use ($app) {
     }
 
     $user_id = $user['id'];
-
-    $sql = "UPDATE todos SET completed = 1 WHERE id  = '$id' AND user_id = '$user_id'";
-    $app['db']->executeUpdate($sql);
+    $sql = 'UPDATE todos SET completed = 1 WHERE id  = :id AND user_id = :user_id';
+    $query = $app['db']->prepare($sql);
+    $query->execute(compact( 'id', 'user_id'));
 
     return $app->redirect($request->headers->get('referer'));
 });
@@ -201,17 +210,18 @@ $app->match('/todo/complete/{id}/json', function (Request $request, $id) use ($a
     }
 
     $user_id = $user['id'];
-
-    $sql = "UPDATE todos SET completed = 1 WHERE id  = '$id' AND user_id = '$user_id'";
-    $app['db']->executeUpdate($sql);
+    $sql = 'UPDATE todos SET completed = 1 WHERE id  = :id AND user_id = :user_id';
+    $query = $app['db']->prepare($sql);
+    $query->execute(compact( 'id', 'user_id'));
 
     return JsonResponse::create(true);
 });
 
 $app->match('/todo/delete/{id}', function ($id) use ($app) {
 
-    $sql = "DELETE FROM todos WHERE id = '$id'";
-    $app['db']->executeUpdate($sql);
+    $sql = "DELETE FROM todos WHERE id = :id";
+    $query = $app['db']->prepare($sql);
+    $query->execute(compact( 'id'));
 
     $app['session']->getFlashBag()->add('message', 'Task deleted');
 
@@ -224,8 +234,9 @@ $app->match('/todo/delete/{id}/json', function ($id) use ($app) {
         return jsonResponseError(401);
     }
 
-    $sql = "DELETE FROM todos WHERE id = '$id'";
-    $app['db']->executeUpdate($sql);
+    $sql = "DELETE FROM todos WHERE id = :id";
+    $query = $app['db']->prepare($sql);
+    $query->execute(compact( 'id'));
 
     return JsonResponse::create(true);
 });
